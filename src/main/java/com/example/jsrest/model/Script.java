@@ -15,7 +15,7 @@ public class Script
     @Id
     private long id;
     private String body;
-    private String status;
+    private String status = "queued";
     private String output;
     private String errors;
     @Temporal(TemporalType.TIMESTAMP)

@@ -22,8 +22,12 @@ public class ScriptsController
     }
 
     @PostMapping
-    public int runScript(@RequestBody String script) {
-        return 0;
+    public long runScript(@RequestBody String scriptText) {
+        Script script = new Script();
+        script.setBody(scriptText);
+        repo.save(script);
+
+        return script.getId();
     }
 
     @GetMapping
