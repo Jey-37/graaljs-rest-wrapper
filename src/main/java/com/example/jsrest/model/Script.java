@@ -22,7 +22,7 @@ public class Script
     private int execTime;
 
     public enum ScriptStatus {
-        QUEUED, EXCECUTING,
+        QUEUED, EXECUTING,
         COMPLETED {
             @Override
             public boolean isFinished() {
