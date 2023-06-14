@@ -1,25 +1,49 @@
 package com.example.jsrest.model;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Temporal;
-import jakarta.persistence.TemporalType;
+import jakarta.persistence.*;
 import lombok.Data;
 
 import java.util.Date;
 
-@Entity
 @Data
+@Entity
+@Table(name = "scripts")
 public class Script
 {
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private long id;
     private String body;
-    private String status = "queued";
+    private ScriptStatus status = ScriptStatus.QUEUED;
     private String output;
     private String errors;
     @Temporal(TemporalType.TIMESTAMP)
     private Date schedTime;
-    @Temporal(TemporalType.TIMESTAMP)
-    private Date execTime;
+    private int execTime;
+
+    public enum ScriptStatus {
+        QUEUED, EXCECUTING,
+        COMPLETED {
+            @Override
+            public boolean isFinished() {
+                return true;
+            }
+        },
+        FAILED {
+            @Override
+            public boolean isFinished() {
+                return true;
+            }
+        },
+        INTERRUPTED {
+            @Override
+            public boolean isFinished() {
+                return true;
+            }
+        };
+
+        public boolean isFinished() {
+            return false;
+        }
+    }
 }
