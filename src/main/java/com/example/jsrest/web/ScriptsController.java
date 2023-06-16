@@ -55,9 +55,8 @@ public class ScriptsController
             if (scriptOutput != null) {
                 script.get().setOutput(scriptOutput);
             }
-            return script;
         }
-        return Optional.empty();
+        return script;
     }
 
     @PostMapping("/{id}")
