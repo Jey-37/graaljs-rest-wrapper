@@ -3,6 +3,7 @@ package com.example.jsrest.service;
 import com.example.jsrest.model.Script;
 import com.example.jsrest.repo.ScriptRepository;
 import org.graalvm.polyglot.Context;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.concurrent.ConcurrentHashMap;
@@ -13,13 +14,16 @@ import java.util.concurrent.Executors;
 @Service
 public class ScriptRunner
 {
-    private final ExecutorService executorService = Executors.newFixedThreadPool(3);
+    private final ExecutorService executorService;
     private final ConcurrentMap<Long, ThreadManagePair> processedThreads = new ConcurrentHashMap<>();
 
     private final ScriptRepository repo;
 
-    public ScriptRunner(ScriptRepository repo) {
+    public ScriptRunner(ScriptRepository repo,
+                        @Value("${script-runner.threads-number:3}") int threadsNumber) {
         this.repo = repo;
+        System.out.println(threadsNumber);
+        executorService = Executors.newFixedThreadPool(threadsNumber);
         try (Context context = Context.create("js")) {
             context.initialize("js");
         }
