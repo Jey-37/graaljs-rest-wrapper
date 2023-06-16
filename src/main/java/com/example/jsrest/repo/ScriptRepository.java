@@ -9,5 +9,5 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface ScriptRepository extends CrudRepository<Script, Long>, PagingAndSortingRepository<Script, Long>
 {
-    Iterable<Script> findByStatus(String status, Sort sort);
+    Iterable<Script> findByStatus(Script.ScriptStatus status, Sort sort);
 }
