@@ -17,7 +17,7 @@ public class ScriptThread implements Runnable
     private volatile boolean isRunning = false;
     private final ScriptRepository repo;
     private final Script script;
-    private Context context;
+    private final Context context;
     private final OutputStream outputStream = new ByteArrayOutputStream();
     private final ConcurrentMap<Long, ThreadManagePair> processedThreads;
 
@@ -25,18 +25,18 @@ public class ScriptThread implements Runnable
         this.script = script;
         this.repo = repo;
         this.processedThreads = processedThreads;
-    }
 
-    @Override
-    public void run() {
-        try(Context context = Context.newBuilder("js")
+        context = Context.newBuilder("js")
                 .out(outputStream).allowHostAccess(HostAccess.NONE)
                 .allowExperimentalOptions(true)
                 .option("js.polyglot-builtin", "false")
                 .option("js.graal-builtin", "false")
-                .option("js.java-package-globals", "false")
-                .build()) {
-            this.context = context;
+                .option("js.java-package-globals", "false").build();
+    }
+
+    @Override
+    public void run() {
+        try {
             isRunning = true;
             script.setSchedTime(new Date());
             script.setStatus(ScriptStatus.EXECUTING);
@@ -57,6 +57,7 @@ public class ScriptThread implements Runnable
             script.setExecTime(execTime);
             script.setOutput(outputStream.toString());
             repo.save(script);
+            context.close();
             processedThreads.remove(script.getId());
         }
     }

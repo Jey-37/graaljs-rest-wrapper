@@ -22,7 +22,6 @@ public class ScriptRunner
     public ScriptRunner(ScriptRepository repo,
                         @Value("${script-runner.threads-number:3}") int threadsNumber) {
         this.repo = repo;
-        System.out.println(threadsNumber);
         executorService = Executors.newFixedThreadPool(threadsNumber);
         try (Context context = Context.create("js")) {
             context.initialize("js");
@@ -42,13 +41,13 @@ public class ScriptRunner
     }
 
     public void stopScript(long id) {
-        if (processedThreads.containsKey(id)) {
-            ThreadManagePair threadMan = processedThreads.get(id);
+        var threadMan = processedThreads.get(id);
+        if (threadMan != null) {
             if (threadMan.thread().isRunning()) {
                 threadMan.thread().closeContext();
             } else {
-                processedThreads.remove(id);
                 threadMan.future().cancel(false);
+                processedThreads.remove(id);
                 var script = repo.findById(id).get();
                 script.setStatus(Script.ScriptStatus.INTERRUPTED);
                 repo.save(script);
@@ -57,8 +56,9 @@ public class ScriptRunner
     }
 
     public String getScriptOutput(long id) {
-        if (processedThreads.containsKey(id)) {
-            return processedThreads.get(id).thread().getOutput();
+        var manMap = processedThreads.get(id);
+        if (manMap != null && manMap.thread().isRunning()) {
+            return manMap.thread().getOutput();
         }
         return null;
     }
