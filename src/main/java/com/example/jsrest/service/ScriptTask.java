@@ -2,7 +2,6 @@ package com.example.jsrest.service;
 
 import com.example.jsrest.model.Script;
 import com.example.jsrest.model.Script.ScriptStatus;
-import com.example.jsrest.repo.ScriptRepository;
 import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.PolyglotException;
@@ -10,37 +9,36 @@ import org.graalvm.polyglot.PolyglotException;
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
 import java.util.Date;
-import java.util.concurrent.ConcurrentMap;
 
-public class ScriptThread implements Runnable
+public class ScriptTask implements Runnable
 {
     private volatile boolean isRunning = false;
-    private final ScriptRepository repo;
+    private final ScriptDbService dbService;
+    private final ScriptRunner scriptRunner;
     private final Script script;
-    private final Context context;
+    private Context context;
     private final OutputStream outputStream = new ByteArrayOutputStream();
-    private final ConcurrentMap<Long, ThreadManagePair> processedThreads;
 
-    public ScriptThread(Script script, ScriptRepository repo, ConcurrentMap<Long, ThreadManagePair> processedThreads) {
+    public ScriptTask(Script script, ScriptDbService dbService,
+                      ScriptRunner scriptRunner) {
         this.script = script;
-        this.repo = repo;
-        this.processedThreads = processedThreads;
-
-        context = Context.newBuilder("js")
-                .out(outputStream).allowHostAccess(HostAccess.NONE)
-                .allowExperimentalOptions(true)
-                .option("js.polyglot-builtin", "false")
-                .option("js.graal-builtin", "false")
-                .option("js.java-package-globals", "false").build();
+        this.dbService = dbService;
+        this.scriptRunner = scriptRunner;
     }
 
     @Override
     public void run() {
-        try {
+        try(Context context = Context.newBuilder("js")
+                .out(outputStream).allowHostAccess(HostAccess.NONE)
+                .allowExperimentalOptions(true)
+                .option("js.polyglot-builtin", "false")
+                .option("js.graal-builtin", "false")
+                .option("js.java-package-globals", "false").build()) {
+            this.context = context;
             isRunning = true;
             script.setSchedTime(new Date());
             script.setStatus(ScriptStatus.EXECUTING);
-            repo.save(script);
+            dbService.saveScript(script);
             context.eval("js", script.getBody());
             script.setStatus(ScriptStatus.COMPLETED);
         } catch (PolyglotException ex) {
@@ -53,21 +51,24 @@ public class ScriptThread implements Runnable
                 }
             }
         } finally {
-            int execTime = (int)(new Date().getTime()-script.getSchedTime().getTime());
-            script.setExecTime(execTime);
-            script.setOutput(outputStream.toString());
-            repo.save(script);
-            context.close();
-            processedThreads.remove(script.getId());
+            script.setExecTime(getExecutionTime());
+            script.setOutput(getOutput());
+            dbService.saveScript(script);
+            scriptRunner.removeTask(script.getId());
         }
     }
 
     public void closeContext() {
-        context.close(true);
+        if (isRunning)
+            context.close(true);
     }
 
     public String getOutput() {
         return outputStream.toString();
+    }
+
+    public int getExecutionTime() {
+        return (int)(new Date().getTime()-script.getSchedTime().getTime());
     }
 
     public boolean isRunning() {

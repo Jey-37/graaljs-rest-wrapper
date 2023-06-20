@@ -1,28 +1,26 @@
 package com.example.jsrest.service;
 
 import com.example.jsrest.model.Script;
-import com.example.jsrest.repo.ScriptRepository;
 import org.graalvm.polyglot.Context;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
 
 @Service
 public class ScriptRunner
 {
     private final ExecutorService executorService;
-    private final ConcurrentMap<Long, ThreadManagePair> processedThreads = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Long, ThreadManagePair> processedTasks = new ConcurrentHashMap<>();
+    private final ScriptDbService dbService;
 
-    private final ScriptRepository repo;
+    private record ThreadManagePair(ScriptTask thread, Future<?> future) { }
 
-    public ScriptRunner(ScriptRepository repo,
-                        @Value("${script-runner.threads-number:3}") int threadsNumber) {
-        this.repo = repo;
+    public ScriptRunner(@Value("${script-runner.threads-number:3}") int threadsNumber,
+                        ScriptDbService dbService) {
         executorService = Executors.newFixedThreadPool(threadsNumber);
+        this.dbService = dbService;
+
         try (Context context = Context.create("js")) {
             context.initialize("js");
         }
@@ -31,35 +29,39 @@ public class ScriptRunner
     public long runScript(String scriptText) {
         Script script = new Script();
         script.setBody(scriptText);
-        repo.save(script);
+        dbService.saveScript(script);
 
-        ScriptThread runThread = new ScriptThread(script, repo, processedThreads);
-        var fut = executorService.submit(runThread);
-        processedThreads.put(script.getId(), new ThreadManagePair(runThread, fut));
+        ScriptTask scriptTask = new ScriptTask(script, dbService, this);
+        var fut = executorService.submit(scriptTask);
+        processedTasks.put(script.getId(), new ThreadManagePair(scriptTask, fut));
 
         return script.getId();
     }
 
     public void stopScript(long id) {
-        var threadMan = processedThreads.get(id);
-        if (threadMan != null) {
-            if (threadMan.thread().isRunning()) {
-                threadMan.thread().closeContext();
+        var taskMan = processedTasks.get(id);
+        if (taskMan != null) {
+            if (taskMan.thread().isRunning()) {
+                taskMan.thread().closeContext();
             } else {
-                threadMan.future().cancel(false);
-                processedThreads.remove(id);
-                var script = repo.findById(id).get();
+                taskMan.future().cancel(false);
+                processedTasks.remove(id);
+                var script = dbService.findScript(id).get();
                 script.setStatus(Script.ScriptStatus.INTERRUPTED);
-                repo.save(script);
+                dbService.saveScript(script);
             }
         }
     }
 
-    public String getScriptOutput(long id) {
-        var manMap = processedThreads.get(id);
+    public void updateScriptData(Script script) {
+        var manMap = processedTasks.get(script.getId());
         if (manMap != null && manMap.thread().isRunning()) {
-            return manMap.thread().getOutput();
+            script.setOutput(manMap.thread().getOutput());
+            script.setExecTime(manMap.thread().getExecutionTime());
         }
-        return null;
+    }
+
+    public void removeTask(long id) {
+        processedTasks.remove(id);
     }
 }
