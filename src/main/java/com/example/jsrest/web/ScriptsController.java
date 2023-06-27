@@ -1,24 +1,18 @@
 package com.example.jsrest.web;
 
-import com.example.jsrest.dto.ScriptDto;
 import com.example.jsrest.model.Script;
 import com.example.jsrest.service.ScriptDbService;
 import com.example.jsrest.service.ScriptRunner;
-import org.modelmapper.ModelMapper;
+import com.fasterxml.jackson.annotation.JsonView;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
 
 
 @RestController
 @RequestMapping("/scripts")
 public class ScriptsController
 {
-    private final ModelMapper modelMapper = new ModelMapper();
     private final ScriptDbService scriptDbService;
     private final ScriptRunner scriptRunner;
 
@@ -34,21 +28,22 @@ public class ScriptsController
     }
 
     @GetMapping
-    public Iterable<ScriptDto> getScripts(
+    @JsonView(Script.Views.ShortInfo.class)
+    public Iterable<Script> getScripts(
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String orderBy) {
-        List<Script> scripts = new ArrayList<>();
-        scriptDbService.findScripts(status, orderBy).forEach(scripts::add);
-        return scripts.stream()
-                .map(script -> modelMapper.map(script, ScriptDto.class))
-                .collect(Collectors.toList());
+        return scriptDbService.findScripts(status, orderBy);
     }
 
     @GetMapping("/{id}")
-    public Optional<Script> getScriptInfo(@PathVariable long id) {
+    public ResponseEntity<Script> getScriptInfo(@PathVariable long id) {
         var script = scriptDbService.findScript(id);
-        script.ifPresent(scriptRunner::updateScriptData);
-        return script;
+        if (script.isPresent()) {
+            scriptRunner.updateScriptData(script.get());
+            return new ResponseEntity<>(script.get(), HttpStatus.OK);
+        } else {
+            return new ResponseEntity<>(null, HttpStatus.NOT_FOUND);
+        }
     }
 
     @PostMapping("/{id}")
@@ -57,6 +52,7 @@ public class ScriptsController
     }
 
     @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     public void removeScript(@PathVariable long id) {
         scriptDbService.removeFinishedScript(id);
     }

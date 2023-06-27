@@ -1,5 +1,6 @@
 package com.example.jsrest.model;
 
+import com.fasterxml.jackson.annotation.JsonView;
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -12,13 +13,17 @@ public class Script
 {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @JsonView(Views.ShortInfo.class)
     private long id;
+    @JsonView(Views.ShortInfo.class)
     private String body;
+    @JsonView(Views.ShortInfo.class)
     private ScriptStatus status = ScriptStatus.QUEUED;
     private String output;
-    private String errors;
     @Temporal(TemporalType.TIMESTAMP)
+    @JsonView(Views.ShortInfo.class)
     private Date schedTime;
+    @JsonView(Views.ShortInfo.class)
     private int execTime;
 
     public enum ScriptStatus {
@@ -45,5 +50,9 @@ public class Script
         public boolean isFinished() {
             return false;
         }
+    }
+
+    public static class Views {
+        public static class ShortInfo {}
     }
 }

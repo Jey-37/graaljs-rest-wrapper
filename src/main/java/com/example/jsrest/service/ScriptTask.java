@@ -7,6 +7,7 @@ import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.PolyglotException;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Date;
 
@@ -29,7 +30,8 @@ public class ScriptTask implements Runnable
     @Override
     public void run() {
         try(Context context = Context.newBuilder("js")
-                .out(outputStream).allowHostAccess(HostAccess.NONE)
+                .out(outputStream).err(outputStream)
+                .allowHostAccess(HostAccess.NONE)
                 .allowExperimentalOptions(true)
                 .option("js.polyglot-builtin", "false")
                 .option("js.graal-builtin", "false")
@@ -47,7 +49,9 @@ public class ScriptTask implements Runnable
                     script.setStatus(ScriptStatus.INTERRUPTED);
                 } else {
                     script.setStatus(ScriptStatus.FAILED);
-                    script.setErrors(ex.getMessage());
+                    try {
+                        outputStream.write(ex.getMessage().getBytes());
+                    } catch (IOException ignored) {}
                 }
             }
         } finally {

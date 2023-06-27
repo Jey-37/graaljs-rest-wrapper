@@ -38,7 +38,7 @@ public class ScriptRunner
         return script.getId();
     }
 
-    public void stopScript(long id) {
+    public boolean stopScript(long id) {
         var taskMan = processedTasks.get(id);
         if (taskMan != null) {
             if (taskMan.thread().isRunning()) {
@@ -50,7 +50,9 @@ public class ScriptRunner
                 script.setStatus(Script.ScriptStatus.INTERRUPTED);
                 dbService.saveScript(script);
             }
+            return true;
         }
+        return false;
     }
 
     public void updateScriptData(Script script) {
