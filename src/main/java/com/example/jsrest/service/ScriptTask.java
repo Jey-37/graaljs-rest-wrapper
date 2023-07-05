@@ -2,80 +2,115 @@ package com.example.jsrest.service;
 
 import com.example.jsrest.model.Script;
 import com.example.jsrest.model.Script.ScriptStatus;
+import com.example.jsrest.streams.*;
 import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.HostAccess;
 import org.graalvm.polyglot.PolyglotException;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Date;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class ScriptTask implements Runnable
 {
-    private volatile boolean isRunning = false;
+    private volatile boolean isStarted;
+
+    private AtomicBoolean isExecuted = new AtomicBoolean();
+
     private final ScriptDbService dbService;
-    private final ScriptRunner scriptRunner;
-    private final Script script;
-    private Context context;
-    private final OutputStream outputStream = new ByteArrayOutputStream();
 
-    public ScriptTask(Script script, ScriptDbService dbService,
-                      ScriptRunner scriptRunner) {
-        this.script = script;
-        this.dbService = dbService;
-        this.scriptRunner = scriptRunner;
-    }
+    private Script script;
 
-    @Override
-    public void run() {
-        try(Context context = Context.newBuilder("js")
-                .out(outputStream).err(outputStream)
+    private final Context context;
+
+    private final BlockableOutputStream outputStream;
+
+    public ScriptTask(Script script, ScriptDbService dbService, OutputStream outputStream) {
+        this.script = Objects.requireNonNull(script);
+        this.dbService = Objects.requireNonNull(dbService);
+        this.outputStream = createOutputStream(script, outputStream);
+
+        context = Context.newBuilder("js")
+                .out(this.outputStream).err(this.outputStream)
                 .allowHostAccess(HostAccess.NONE)
                 .allowExperimentalOptions(true)
                 .option("js.polyglot-builtin", "false")
                 .option("js.graal-builtin", "false")
-                .option("js.java-package-globals", "false").build()) {
-            this.context = context;
-            isRunning = true;
-            script.setSchedTime(new Date());
-            script.setStatus(ScriptStatus.EXECUTING);
-            dbService.saveScript(script);
+                .option("js.java-package-globals", "false").build();
+    }
+
+    @Override
+    public void run() {
+        isStarted = true;
+
+        script.setSchedTime(new Date());
+        script.setStatus(ScriptStatus.EXECUTING);
+        script.setOutput("");
+        dbService.saveScript(script);
+
+        ScriptStatus scriptStatus = ScriptStatus.COMPLETED;
+        String errorMessage = null;
+
+        try {
             context.eval("js", script.getBody());
-            script.setStatus(ScriptStatus.COMPLETED);
         } catch (PolyglotException ex) {
             if (ex.isGuestException()) {
                 if (ex.isCancelled()) {
-                    script.setStatus(ScriptStatus.INTERRUPTED);
+                    scriptStatus = ScriptStatus.INTERRUPTED;
+                    errorMessage = "Execution was interrupted";
                 } else {
-                    script.setStatus(ScriptStatus.FAILED);
-                    try {
-                        outputStream.write(ex.getMessage().getBytes());
-                    } catch (IOException ignored) {}
+                    scriptStatus = ScriptStatus.FAILED;
+                    errorMessage = ex.getMessage();
                 }
             }
+        } catch (IllegalStateException ex) {
+            scriptStatus = ScriptStatus.INTERRUPTED;
+            errorMessage = "Execution was interrupted";
         } finally {
-            script.setExecTime(getExecutionTime());
-            script.setOutput(getOutput());
+            isExecuted.set(true);
+
+            int execTime = script.getExecTime();
+
+            if (outputStream.isBlocked()) {
+                outputStream.unblock();
+            }
+            try {
+                if (errorMessage != null) {
+                    outputStream.write(errorMessage.getBytes());
+                }
+                outputStream.close();
+            } catch (IOException ignored) {}
+
+            script = dbService.findScript(script.getId());
+            script.setStatus(scriptStatus);
+            script.setExecTime(execTime);
             dbService.saveScript(script);
-            scriptRunner.removeTask(script.getId());
+
+            if (scriptStatus != ScriptStatus.INTERRUPTED) {
+                context.close();
+            }
         }
     }
 
-    public void closeContext() {
-        if (isRunning)
+    public void stop() {
+        if (isStarted && isExecuted.compareAndSet(false, true)) {
+            outputStream.block();
             context.close(true);
+        }
     }
 
-    public String getOutput() {
-        return outputStream.toString();
+    public boolean isStarted() {
+        return isStarted;
     }
 
-    public int getExecutionTime() {
-        return (int)(new Date().getTime()-script.getSchedTime().getTime());
-    }
-
-    public boolean isRunning() {
-        return isRunning;
+    private BlockableOutputStream createOutputStream(Script script, OutputStream outputStream) {
+        OutputStream stream = new DelayedOutputStream(
+                new ScriptDbOutputStream(script.getId(), dbService), 200);
+        if (outputStream != null) {
+            stream = new OutputStreamDistributor(stream, outputStream);
+        }
+        return new BlockableOutputStream(new LimitedOutputStream(stream, 5000));
     }
 }

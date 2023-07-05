@@ -2,13 +2,11 @@ package com.example.jsrest.service;
 
 import com.example.jsrest.model.Script;
 import com.example.jsrest.repo.ScriptRepository;
+import jakarta.transaction.Transactional;
 import org.springframework.data.domain.Sort;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
-import java.util.Optional;
 
 @Service
 public class ScriptDbService
@@ -19,29 +17,29 @@ public class ScriptDbService
         this.repo = repo;
     }
 
-    public Optional<Script> findScript(long id) {
-        return repo.findById(id);
+    public Script findScript(long id) {
+        return repo.findById(id).orElse(null);
     }
 
     public Iterable<Script> findScripts(String status, String orderBy) {
+        Script.ScriptStatus scriptStatus;
         try {
-            var scriptStatus = status != null ? Script.ScriptStatus.valueOf(status.toUpperCase()) : null;
-            if (orderBy != null) {
-                if (!List.of("id", "schedTime").contains(orderBy))
-                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                            "The only possible values for orderBy parameter are id and schedTime");
-                if (scriptStatus != null)
-                    return repo.findByStatus(scriptStatus, Sort.by(orderBy).descending());
-                return repo.findAll(Sort.by(orderBy).descending());
-            }
-            if (scriptStatus != null)
-                return repo.findByStatus(scriptStatus, null);
-
-            return repo.findAll();
+            scriptStatus = status != null ? Script.ScriptStatus.valueOf(status.toUpperCase()) : null;
         } catch (IllegalArgumentException ex) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "Illegal status parameter value");
+            throw new IllegalArgumentException("Illegal status parameter value");
         }
+        if (orderBy != null) {
+            if (!List.of("id", "schedTime").contains(orderBy))
+                throw new IllegalArgumentException(
+                        "The only possible values for orderBy parameter are id and schedTime");
+            if (scriptStatus != null)
+                return repo.findByStatus(scriptStatus, Sort.by(orderBy).descending());
+            return repo.findAll(Sort.by(orderBy).descending());
+        }
+        if (scriptStatus != null)
+            return repo.findByStatus(scriptStatus, null);
+
+        return repo.findAll();
     }
 
     public boolean removeFinishedScript(long id) {
@@ -59,5 +57,10 @@ public class ScriptDbService
 
     public Script saveScript(Script script) {
         return repo.save(script);
+    }
+
+    @Transactional
+    public void appendOutput(long id, String output) {
+        repo.appendOutput(id, output);
     }
 }

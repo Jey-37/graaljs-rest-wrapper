@@ -1,69 +1,73 @@
 package com.example.jsrest.service;
 
 import com.example.jsrest.model.Script;
-import org.graalvm.polyglot.Context;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.concurrent.*;
 
 @Service
 public class ScriptRunner
 {
     private final ExecutorService executorService;
-    private final ConcurrentMap<Long, ThreadManagePair> processedTasks = new ConcurrentHashMap<>();
+
+    private final ConcurrentMap<Long, ScriptRunPair> processedTasks = new ConcurrentHashMap<>();
+
     private final ScriptDbService dbService;
 
-    private record ThreadManagePair(ScriptTask thread, Future<?> future) { }
+    record ScriptRunPair(ScriptTask task, CompletableFuture<?> future) {}
 
     public ScriptRunner(@Value("${script-runner.threads-number:3}") int threadsNumber,
                         ScriptDbService dbService) {
         executorService = Executors.newFixedThreadPool(threadsNumber);
         this.dbService = dbService;
-
-        try (Context context = Context.create("js")) {
-            context.initialize("js");
-        }
     }
 
-    public long runScript(String scriptText) {
-        Script script = new Script();
-        script.setBody(scriptText);
+    public long runScript(String scriptBody) {
+        return runScript(scriptBody, null);
+    }
+
+    public long runScript(String scriptBody, OutputStream outputStream) {
+        Script script = new Script(scriptBody);
         dbService.saveScript(script);
 
-        ScriptTask scriptTask = new ScriptTask(script, dbService, this);
-        var fut = executorService.submit(scriptTask);
-        processedTasks.put(script.getId(), new ThreadManagePair(scriptTask, fut));
+        var task = new ScriptTask(script, dbService, outputStream);
+
+        var future = CompletableFuture.runAsync(task, executorService);
+
+        future.thenRun(() -> processedTasks.remove(script.getId()));
+
+        future.whenComplete((res, ex) -> {
+            if (future.isCancelled()) {
+                Script updatedScript = dbService.findScript(script.getId());
+                updatedScript.setStatus(Script.ScriptStatus.INTERRUPTED);
+                dbService.saveScript(updatedScript);
+
+                if (outputStream != null) {
+                    try {
+                        outputStream.close();
+                    } catch (IOException ignored) {}
+                }
+            }
+        });
+
+        processedTasks.put(script.getId(), new ScriptRunPair(task, future));
 
         return script.getId();
     }
 
     public boolean stopScript(long id) {
-        var taskMan = processedTasks.get(id);
-        if (taskMan != null) {
-            if (taskMan.thread().isRunning()) {
-                taskMan.thread().closeContext();
+        var scriptRunPair = processedTasks.remove(id);
+        if (scriptRunPair != null) {
+            if (scriptRunPair.task.isStarted()) {
+                scriptRunPair.task.stop();
             } else {
-                taskMan.future().cancel(false);
-                processedTasks.remove(id);
-                var script = dbService.findScript(id).get();
-                script.setStatus(Script.ScriptStatus.INTERRUPTED);
-                dbService.saveScript(script);
+                scriptRunPair.future.cancel(false);
             }
             return true;
         }
         return false;
-    }
-
-    public void updateScriptData(Script script) {
-        var manMap = processedTasks.get(script.getId());
-        if (manMap != null && manMap.thread().isRunning()) {
-            script.setOutput(manMap.thread().getOutput());
-            script.setExecTime(manMap.thread().getExecutionTime());
-        }
-    }
-
-    public void removeTask(long id) {
-        processedTasks.remove(id);
     }
 }

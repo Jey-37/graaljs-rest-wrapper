@@ -1,4 +1,4 @@
-package com.example.jsrest.converter;
+package com.example.jsrest.model.converter;
 
 import com.example.jsrest.model.Script;
 import jakarta.persistence.AttributeConverter;

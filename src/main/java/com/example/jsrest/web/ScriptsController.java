@@ -3,10 +3,16 @@ package com.example.jsrest.web;
 import com.example.jsrest.model.Script;
 import com.example.jsrest.service.ScriptDbService;
 import com.example.jsrest.service.ScriptRunner;
+import com.example.jsrest.streams.DelayedOutputStream;
+import com.example.jsrest.streams.ResponseEmitterOutputStream;
 import com.fasterxml.jackson.annotation.JsonView;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter;
+
+import java.io.IOException;
 
 
 @RestController
@@ -22,9 +28,25 @@ public class ScriptsController
     }
 
     @PostMapping
-    @ResponseStatus(HttpStatus.ACCEPTED)
-    public long runScript(@RequestBody String scriptText) {
-        return scriptRunner.runScript(scriptText);
+    public ResponseEntity<ResponseBodyEmitter> runScript(
+            @RequestBody String scriptText,
+            @RequestParam(required = false) String blocking) throws IOException {
+
+        ResponseBodyEmitter emitter = new ResponseBodyEmitter();
+
+        if (blocking != null && !blocking.equalsIgnoreCase("false")) {
+            long scriptId = scriptRunner.runScript(scriptText,
+                    new DelayedOutputStream(new ResponseEmitterOutputStream(emitter), 200));
+            emitter.send(String.format("Script ID: %d\n", scriptId));
+
+            return ResponseEntity.ok(emitter);
+        } else {
+            long scriptId = scriptRunner.runScript(scriptText);
+            emitter.send(scriptId);
+            emitter.complete();
+
+            return ResponseEntity.accepted().body(emitter);
+        }
     }
 
     @GetMapping
@@ -32,18 +54,16 @@ public class ScriptsController
     public Iterable<Script> getScripts(
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String orderBy) {
-        return scriptDbService.findScripts(status, orderBy);
+        try {
+            return scriptDbService.findScripts(status, orderBy);
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ex.getMessage());
+        }
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<Script> getScriptInfo(@PathVariable long id) {
-        var script = scriptDbService.findScript(id);
-        if (script.isPresent()) {
-            scriptRunner.updateScriptData(script.get());
-            return new ResponseEntity<>(script.get(), HttpStatus.OK);
-        } else {
-            return new ResponseEntity<>(null, HttpStatus.NOT_FOUND);
-        }
+        return ResponseEntity.ofNullable(scriptDbService.findScript(id));
     }
 
     @PostMapping("/{id}")

@@ -3,10 +3,12 @@ package com.example.jsrest.model;
 import com.fasterxml.jackson.annotation.JsonView;
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.util.Date;
 
 @Data
+@NoArgsConstructor
 @Entity
 @Table(name = "scripts")
 public class Script
@@ -19,6 +21,7 @@ public class Script
     private String body;
     @JsonView(Views.ShortInfo.class)
     private ScriptStatus status = ScriptStatus.QUEUED;
+    @Column(length = 5000)
     private String output;
     @Temporal(TemporalType.TIMESTAMP)
     @JsonView(Views.ShortInfo.class)
@@ -28,31 +31,28 @@ public class Script
 
     public enum ScriptStatus {
         QUEUED, EXECUTING,
-        COMPLETED {
-            @Override
-            public boolean isFinished() {
-                return true;
-            }
-        },
-        FAILED {
-            @Override
-            public boolean isFinished() {
-                return true;
-            }
-        },
-        INTERRUPTED {
-            @Override
-            public boolean isFinished() {
-                return true;
-            }
-        };
+        COMPLETED, FAILED, INTERRUPTED;
 
         public boolean isFinished() {
-            return false;
+            return switch (this) {
+                case COMPLETED, FAILED, INTERRUPTED -> true;
+                default -> false;
+            };
         }
     }
 
     public static class Views {
         public static class ShortInfo {}
+    }
+
+    public Script(String body) {
+        this.body = body;
+    }
+
+    public int getExecTime() {
+        if (schedTime != null && execTime == 0) {
+            return (int)(new Date().getTime()-schedTime.getTime());
+        }
+        return execTime;
     }
 }
