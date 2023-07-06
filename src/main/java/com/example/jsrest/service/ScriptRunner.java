@@ -21,8 +21,7 @@ public class ScriptRunner
 
     public ScriptRunner(@Value("${running-threads-number:3}") int threadsNumber,
                         ScriptDbService dbService) {
-        System.out.println(threadsNumber);
-        executorService = Executors.newFixedThreadPool(threadsNumber);
+        this.executorService = Executors.newFixedThreadPool(threadsNumber);
         this.dbService = dbService;
     }
 

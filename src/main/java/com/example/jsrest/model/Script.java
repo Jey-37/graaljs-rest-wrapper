@@ -5,7 +5,8 @@ import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.Date;
+import java.time.Duration;
+import java.time.LocalDateTime;
 
 @Data
 @NoArgsConstructor
@@ -21,11 +22,12 @@ public class Script
     private String body;
     @JsonView(Views.ShortInfo.class)
     private ScriptStatus status = ScriptStatus.QUEUED;
-    @Column(length = 5000)
+    @Column(length = 10000)
     private String output;
-    @Temporal(TemporalType.TIMESTAMP)
     @JsonView(Views.ShortInfo.class)
-    private Date schedTime;
+    private LocalDateTime pubTime = LocalDateTime.now();
+    @JsonView(Views.ShortInfo.class)
+    private LocalDateTime schedTime;
     @JsonView(Views.ShortInfo.class)
     private int execTime;
 
@@ -51,7 +53,7 @@ public class Script
 
     public int getExecTime() {
         if (schedTime != null && execTime == 0) {
-            return (int)(new Date().getTime()-schedTime.getTime());
+            return (int)Duration.between(schedTime, LocalDateTime.now()).toMillis();
         }
         return execTime;
     }

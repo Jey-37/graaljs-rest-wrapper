@@ -9,7 +9,7 @@ import org.graalvm.polyglot.PolyglotException;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.util.Date;
+import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -49,7 +49,7 @@ public class ScriptTask implements Runnable
     public void run() {
         isStarted = true;
 
-        script.setSchedTime(new Date());
+        script.setSchedTime(LocalDateTime.now());
         script.setStatus(ScriptStatus.EXECUTING);
         dbService.saveScript(script);
 
