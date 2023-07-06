@@ -33,7 +33,7 @@ public class ScriptRunner
         Script script = new Script(scriptBody);
         dbService.saveScript(script);
 
-        var task = new ScriptTask(script, dbService, outputStream);
+        ScriptTask task = new ScriptTask(script, dbService, outputStream);
 
         var future = CompletableFuture.runAsync(task, executorService);
 

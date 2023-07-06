@@ -6,6 +6,11 @@ import java.io.OutputStream;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * {@code OutputStream} decorator that allows blocking of
+ * the underlying stream. When a stream is blocked, no actions can be performed
+ * with it until it is unblocked again.
+ */
 public class BlockableOutputStream extends FilterOutputStream
 {
     private final AtomicBoolean blocked = new AtomicBoolean();

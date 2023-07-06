@@ -4,6 +4,9 @@ import com.example.jsrest.service.ScriptDbService;
 
 import java.io.OutputStream;
 
+/**
+ * {@code OutputStream} realization that appends data to the output of the bounded Script in the DB.
+ */
 public final class ScriptDbOutputStream extends OutputStream
 {
     private final long scriptId;

@@ -7,6 +7,10 @@ import java.io.OutputStream;
 import java.time.Duration;
 import java.time.Instant;
 
+/**
+ * {@code OutputStream} decorator with a minimum delay between writes
+ * into underlying stream. The delay allows limiting of the writing frequency.
+ */
 public class DelayedOutputStream extends FilterOutputStream
 {
     protected final ByteArrayOutputStream buf;

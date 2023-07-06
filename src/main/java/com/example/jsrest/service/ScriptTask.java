@@ -33,6 +33,10 @@ public class ScriptTask implements Runnable
         this.script = Objects.requireNonNull(script);
         this.dbService = Objects.requireNonNull(dbService);
         this.outputStream = createOutputStream(script, outputStream);
+
+        // controlledStream is necessary because we have to limit the output length,
+        // and we need to have the ability to block the stream to prevent its premature closing
+        // (during the context closing)
         this.controlledStream = new BlockableOutputStream(
                 new LimitedOutputStream(this.outputStream, 5000));
 
@@ -69,6 +73,8 @@ public class ScriptTask implements Runnable
                 }
             }
         } catch (IllegalStateException ex) {
+            // IllegalStateException can be thrown if we close the context before
+            // calling of eval() method
             scriptStatus = ScriptStatus.INTERRUPTED;
             errorMessage = "Execution was interrupted";
         } finally {

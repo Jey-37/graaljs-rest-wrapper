@@ -6,6 +6,9 @@ import java.util.Collection;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 
+/**
+ * {@code OutputStream} that passes all actions to underlying streams.
+ */
 public class OutputStreamDistributor extends OutputStream
 {
     private final Set<OutputStream> streams = new CopyOnWriteArraySet<>();

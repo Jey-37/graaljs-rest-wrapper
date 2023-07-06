@@ -5,6 +5,11 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Objects;
 
+/**
+ * {@code OutputStream} decorator that allows limiting the maximum
+ * number of bytes that can be written to it. After reaching the limit,
+ * the stream becomes blocked and does not pass any further writing.
+ */
 public class LimitedOutputStream extends FilterOutputStream
 {
     protected final int limit;

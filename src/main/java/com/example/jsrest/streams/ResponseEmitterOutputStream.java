@@ -5,6 +5,9 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyEmitter
 import java.io.IOException;
 import java.io.OutputStream;
 
+/**
+ * {@code OutputStream} realization that sends data to the bounded {@code ResponseBodyEmitter}
+ */
 public final class ResponseEmitterOutputStream extends OutputStream
 {
     private final ResponseBodyEmitter emitter;
