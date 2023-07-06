@@ -29,9 +29,8 @@ public class ScriptDbService
             throw new IllegalArgumentException("Illegal status parameter value");
         }
         if (orderBy != null) {
-            if (!List.of("id", "schedTime").contains(orderBy))
-                throw new IllegalArgumentException(
-                        "The only possible values for orderBy parameter are id and schedTime");
+            if (!List.of("id", "schedTime", "pubTime").contains(orderBy))
+                throw new IllegalArgumentException("Illegal orderBy parameter value");
             if (scriptStatus != null)
                 return repo.findByStatus(scriptStatus, Sort.by(orderBy).descending());
             return repo.findAll(Sort.by(orderBy).descending());
