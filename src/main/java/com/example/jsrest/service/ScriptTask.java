@@ -25,15 +25,19 @@ public class ScriptTask implements Runnable
 
     private final Context context;
 
-    private final BlockableOutputStream outputStream;
+    private final OutputStream outputStream;
+
+    private final BlockableOutputStream controlledStream;
 
     public ScriptTask(Script script, ScriptDbService dbService, OutputStream outputStream) {
         this.script = Objects.requireNonNull(script);
         this.dbService = Objects.requireNonNull(dbService);
         this.outputStream = createOutputStream(script, outputStream);
+        this.controlledStream = new BlockableOutputStream(
+                new LimitedOutputStream(this.outputStream, 5000));
 
         context = Context.newBuilder("js")
-                .out(this.outputStream).err(this.outputStream)
+                .out(controlledStream).err(controlledStream)
                 .allowHostAccess(HostAccess.NONE)
                 .allowExperimentalOptions(true)
                 .option("js.polyglot-builtin", "false")
@@ -47,7 +51,6 @@ public class ScriptTask implements Runnable
 
         script.setSchedTime(new Date());
         script.setStatus(ScriptStatus.EXECUTING);
-        script.setOutput("");
         dbService.saveScript(script);
 
         ScriptStatus scriptStatus = ScriptStatus.COMPLETED;
@@ -73,9 +76,6 @@ public class ScriptTask implements Runnable
 
             int execTime = script.getExecTime();
 
-            if (outputStream.isBlocked()) {
-                outputStream.unblock();
-            }
             try {
                 if (errorMessage != null) {
                     outputStream.write(errorMessage.getBytes());
@@ -96,7 +96,7 @@ public class ScriptTask implements Runnable
 
     public void stop() {
         if (isStarted && isExecuted.compareAndSet(false, true)) {
-            outputStream.block();
+            controlledStream.block();
             context.close(true);
         }
     }
@@ -105,12 +105,12 @@ public class ScriptTask implements Runnable
         return isStarted;
     }
 
-    private BlockableOutputStream createOutputStream(Script script, OutputStream outputStream) {
+    private OutputStream createOutputStream(Script script, OutputStream outputStream) {
         OutputStream stream = new DelayedOutputStream(
                 new ScriptDbOutputStream(script.getId(), dbService), 200);
         if (outputStream != null) {
             stream = new OutputStreamDistributor(stream, outputStream);
         }
-        return new BlockableOutputStream(new LimitedOutputStream(stream, 5000));
+        return stream;
     }
 }

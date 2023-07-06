@@ -14,6 +14,6 @@ public interface ScriptRepository extends CrudRepository<Script, Long>, PagingAn
     Iterable<Script> findByStatus(Script.ScriptStatus status, Sort sort);
 
     @Modifying
-    @Query("update Script s set s.output = concat(s.output, :output) where s.id = :id")
+    @Query("update Script s set s.output = concat(ifnull(s.output, ''), :output) where s.id = :id")
     void appendOutput(long id, String output);
 }

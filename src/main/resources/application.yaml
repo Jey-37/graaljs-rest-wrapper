@@ -11,5 +11,4 @@ server:
   error:
     include-message: always
 
-script-runner:
-  threads-number: 3
+running-threads-number: 3

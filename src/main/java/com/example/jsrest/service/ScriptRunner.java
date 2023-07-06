@@ -19,8 +19,9 @@ public class ScriptRunner
 
     record ScriptRunPair(ScriptTask task, CompletableFuture<?> future) {}
 
-    public ScriptRunner(@Value("${script-runner.threads-number:3}") int threadsNumber,
+    public ScriptRunner(@Value("${running-threads-number:3}") int threadsNumber,
                         ScriptDbService dbService) {
+        System.out.println(threadsNumber);
         executorService = Executors.newFixedThreadPool(threadsNumber);
         this.dbService = dbService;
     }
@@ -43,10 +44,12 @@ public class ScriptRunner
             if (future.isCancelled()) {
                 Script updatedScript = dbService.findScript(script.getId());
                 updatedScript.setStatus(Script.ScriptStatus.INTERRUPTED);
+                updatedScript.setOutput("Execution was cancelled");
                 dbService.saveScript(updatedScript);
 
                 if (outputStream != null) {
                     try {
+                        outputStream.write("Execution was cancelled".getBytes());
                         outputStream.close();
                     } catch (IOException ignored) {}
                 }

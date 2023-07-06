@@ -4,7 +4,7 @@ import com.example.jsrest.service.ScriptDbService;
 
 import java.io.OutputStream;
 
-public class ScriptDbOutputStream extends OutputStream
+public final class ScriptDbOutputStream extends OutputStream
 {
     private final long scriptId;
 
